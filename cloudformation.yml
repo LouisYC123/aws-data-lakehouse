@@ -15,8 +15,6 @@ Resources:
       OwnershipControls:
         Rules:
           - ObjectOwnership: ObjectWriter
-    # Properties:
-    #   AccessControl: LogDeliveryWrite
             
   DataLake:
     Type: "AWS::S3::Bucket"
@@ -30,7 +28,8 @@ Resources:
         DestinationBucketName: !Ref AccessLogBucket
 
 Outputs:
-  # returns the bucket names as outputs so they can be imported into other stacks if required.
+  # returns the bucket names as outputs so they can be imported into other
+  # stacks if required.
   MainBucketName:
     Description: Name of the main bucket
     Value: !Ref DataLake
