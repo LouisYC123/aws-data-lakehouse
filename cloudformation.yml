@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Datalakehouse Architecture for Lisbon AirBnb Analysis
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: lg-lisbon-airbnb-data
+
+Resources:  
+  AccessLogBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+    # Properties:
+    #   AccessControl: LogDeliveryWrite
+            
+  DataLake:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogBucket
+
+Outputs:
+  # returns the bucket names as outputs so they can be imported into other stacks if required.
+  MainBucketName:
+    Description: Name of the main bucket
+    Value: !Ref DataLake
+  LogBucketName:
+    Description: Name of the access log bucket
+    Value: !Ref AccessLogBucket
