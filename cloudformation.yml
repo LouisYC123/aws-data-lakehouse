@@ -11,9 +11,11 @@ Mappings:
     Staging:
       LandingZoneBucketName: lg-airbnb-staging-data-landing-zone
       CleanZoneBucketName: lg-airbnb-staging-data-clean-zone
+      LambdaBucketName: lg-lambda-bucket
     Production:
       LandingZoneBucketName: lg-airbnb-production-data-landing-zone
       CleanZoneBucketName: lg-airbnb-production-data-clean-zone
+      LambdaBucketName: lg-lambda-bucket
 
 Resources:  
   AccessLogBucketLanding:
@@ -79,27 +81,31 @@ Resources:
                   - logs:PutLogEvents
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
-                Resource:
-                  - !GetAtt AccessLogBucketLanding.Arn
-                  - !Sub "${AccessLogBucketLanding.Arn}/*"
-                  - !GetAtt AccessLogBucketClean.Arn
-                  - !Sub "${AccessLogBucketClean.Arn}/*"
+                Resource: "*"
               - Effect: Allow 
                 Action: s3:*
-                Resource: 
+                Resource:
                   - !GetAtt LandingZone.Arn
                   - !Sub "${LandingZone.Arn}/*"
                   - !GetAtt CleanZone.Arn
                   - !Sub "${CleanZone.Arn}/*"
               - Effect: Allow 
                 Action: glue:*
-                Resource: 
-                  - !GetAtt LandingZone.Arn
-                  - !Sub "${LandingZone.Arn}/*"
-                  - !GetAtt CleanZone.Arn
-                  - !Sub "${CleanZone.Arn}/*"
+                Resource: '*'
       RoleName: AirbnbS3GlueLambdaRole
 
-
+  CSVtoParquetLambda: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/CSVtoParquetLambda.py.zip
+      FunctionName: CSVtoParquetLambda
+      Handler: CSVtoParquetLambda.lambda_handler
+      Runtime: python3.9
+      Layers:
+        - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 60
 
 
