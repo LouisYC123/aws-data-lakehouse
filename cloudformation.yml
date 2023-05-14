@@ -107,5 +107,6 @@ Resources:
         - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout : 300
+      MemorySize: 1024
 
 
