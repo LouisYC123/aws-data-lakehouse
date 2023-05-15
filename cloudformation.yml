@@ -1,13 +1,24 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: 2010-09-09
 Description: Datalakehouse Architecture for Lisbon AirBnb Analysis
 
 Parameters:
-  BucketName:
+  Environment:
+    Description: The environment name
     Type: String
-    Default: lg-lisbon-airbnb-data
+
+Mappings:
+  EnvironmentValues:
+    Staging:
+      LandingZoneBucketName: lg-airbnb-staging-data-landing-zone
+      CleanZoneBucketName: lg-airbnb-staging-data-clean-zone
+      LambdaBucketName: lg-lambda-bucket
+    Production:
+      LandingZoneBucketName: lg-airbnb-production-data-landing-zone
+      CleanZoneBucketName: lg-airbnb-production-data-clean-zone
+      LambdaBucketName: lg-lambda-bucket
 
 Resources:  
-  AccessLogBucket:
+  AccessLogBucketLanding:
     Type: "AWS::S3::Bucket"
     Properties:
       PublicAccessBlockConfiguration:
@@ -16,23 +27,86 @@ Resources:
         Rules:
           - ObjectOwnership: ObjectWriter
             
-  DataLake:
+  LandingZone:
     Type: "AWS::S3::Bucket"
     Properties:
-      BucketName: !Ref BucketName
+      BucketName: !FindInMap [EnvironmentValues, Staging, LandingZoneBucketName]
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
       LoggingConfiguration:
-        DestinationBucketName: !Ref AccessLogBucket
+        DestinationBucketName: !Ref AccessLogBucketLanding
 
-Outputs:
-  # returns the bucket names as outputs so they can be imported into other
-  # stacks if required.
-  MainBucketName:
-    Description: Name of the main bucket
-    Value: !Ref DataLake
-  LogBucketName:
-    Description: Name of the access log bucket
-    Value: !Ref AccessLogBucket
+  AccessLogBucketClean:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+            
+  CleanZone:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !FindInMap [EnvironmentValues, Staging, CleanZoneBucketName]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogBucketClean
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Role to provide lambda and glue access to s3
+      Policies:
+        - PolicyName: AirbnbDataLakehouseLambdaS3GluePolicy
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - logs:PutLogEvents
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                Resource: "*"
+              - Effect: Allow 
+                Action: s3:*
+                Resource:
+                  - !GetAtt LandingZone.Arn
+                  - !Sub "${LandingZone.Arn}/*"
+                  - !GetAtt CleanZone.Arn
+                  - !Sub "${CleanZone.Arn}/*"
+              - Effect: Allow 
+                Action: glue:*
+                Resource: '*'
+      RoleName: AirbnbS3GlueLambdaRole
+
+  CSVtoParquetLambda: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/CSVtoParquetLambda.py.zip
+      FunctionName: CSVtoParquetLambda
+      Handler: CSVtoParquetLambda.lambda_handler
+      Runtime: python3.9
+      Layers:
+        - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 300
+      MemorySize: 1024
+
+

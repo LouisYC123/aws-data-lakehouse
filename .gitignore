@@ -163,3 +163,6 @@ data.py
 media/
 packages
 .DS_Store
+aws_policies
+test.csv
+data
