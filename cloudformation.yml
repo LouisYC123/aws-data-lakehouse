@@ -12,10 +12,16 @@ Mappings:
       LandingZoneBucketName: lg-airbnb-staging-data-landing-zone
       CleanZoneBucketName: lg-airbnb-staging-data-clean-zone
       LambdaBucketName: lg-lambda-bucket
+      RedshiftClusterName: redshift-cluster-airbnb-staging-dw
+      RedshiftDBName: lisbon_airbnb_prod
+      
     Production:
       LandingZoneBucketName: lg-airbnb-production-data-landing-zone
       CleanZoneBucketName: lg-airbnb-production-data-clean-zone
-      LambdaBucketName: lg-lambda-bucket
+      LambdaBucketName: lg-lambda-production-bucket
+      RedshiftClusterName: redshift-cluster-airbnb-production-dw
+
+Transform: AWS::SecretsManager-2020-07-23
 
 Resources:  
   AccessLogBucketLanding:
@@ -108,5 +114,94 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout : 300
       MemorySize: 1024
+
+  RedshiftSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: This is my redshift instance secret
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "lg_admin"}'
+        GenerateStringKey: password
+        PasswordLength: 16
+        ExcludeCharacters: "\"@/\\"
+      Tags:
+      - Key: project
+        Value: airbnb_data_lakehouse
+
+  RedshiftRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - redshift.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Allows Redshift clusters to call AWS services on your behalf
+      Policies:
+        - PolicyName: EmbeddedInlinePolicy
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:*
+                  - s3-object-lambda:*
+                Resource: 
+                  - !GetAtt CleanZone.Arn
+                  - !Sub ${CleanZone.Arn}/*
+                  - !GetAtt LandingZone.Arn
+                  - !Sub ${LandingZone.Arn}/*
+                  - !GetAtt AccessLogBucketLanding.Arn
+                  - !Sub ${AccessLogBucketLanding.Arn}/*
+                  - !GetAtt AccessLogBucketClean.Arn
+                  - !Sub ${AccessLogBucketClean.Arn}/*
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+        - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
+      RoleName: RedshiftS3Access
+
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      DBName: !FindInMap [EnvironmentValues, Staging, RedshiftDBName]
+      NodeType: dc2.large
+      ClusterType: single-node
+      MasterUsername:
+        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::username}}"
+      MasterUserPassword:
+        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::password}}"
+      IamRoles: 
+        # - !GetAtt RedshiftRole.Arn
+        - !Sub arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-${AWS::Region}-RedshiftRole
+
+  SecretRedshiftAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId:
+        Ref: RedshiftSecret
+      TargetId:
+        Ref: RedshiftCluster
+      TargetType: AWS::Redshift::Cluster
+
+  RedshiftSecretRotationSchedule:
+    Type: AWS::SecretsManager::RotationSchedule
+    DependsOn: SecretRedshiftAttachment
+    Properties:
+      SecretId:
+        Ref: RedshiftSecret
+      HostedRotationLambda:
+        RotationType: RedshiftSingleUser
+        RotationLambdaName: SecretsManagerRotationRedshift
+      RotationRules:
+        Duration: 2h
+        ScheduleExpression: 'cron(0 8 1 * ? *)'
+      
+
+
 
 

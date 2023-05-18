@@ -46,7 +46,7 @@ An AWS Data Lakehouse for analytics on Lisbon AirBnB data
 Note:
  - added 'AWSLambdaBasicExecutionRole' policy to 'AirbnbS3GlueLambdaRole' Role
 
-
+## Governance & Security
 
 
 ## Useful AWS CLI Commands
