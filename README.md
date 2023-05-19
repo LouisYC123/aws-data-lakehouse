@@ -1,6 +1,7 @@
 # aws-data-lakehouse
 An AWS Data Lakehouse for analytics on Lisbon AirBnB data
 
+![lisbon-datalake_V2 drawio-2](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/092e9985-d32d-45b2-86c7-5cce6b7c7f7e)
 
 ## Setup 
 
