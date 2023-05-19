@@ -61,4 +61,5 @@ Note:
 
 
 
+![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)
 
