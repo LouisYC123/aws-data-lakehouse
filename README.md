@@ -3,6 +3,7 @@ An AWS Data Lakehouse for analytics on Lisbon AirBnB data
 
 ![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5955bb96-6613-41d0-bf19-24ad21ccf02c)
 
+
 ## Setup 
 1. Create bucket for lambdas and upload lambda zips
 2. add your email to Secrets Manager, this will be used for notification alerts. Add the secret's arn to line XXX (~302, in MySecretEmailAttachment:Properties:SecretId )
@@ -32,4 +33,5 @@ Note:
 
 ![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)
 
+![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)
 
