@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Template to spin up a rudimentary Data LakeHouse Architecture
+Description: Template to spin up a rudimentary Data LakeHouse Architecture with automated data cataloging
 
 Parameters:
   Environment:
@@ -26,6 +26,7 @@ Mappings:
 Transform: AWS::SecretsManager-2020-07-23
 
 Resources:  
+# ---- S3 Buckets
   AccessLogBucketLanding:
     Type: "AWS::S3::Bucket"
     Properties:
@@ -58,6 +59,18 @@ Resources:
         Rules:
           - ObjectOwnership: ObjectWriter
 
+  CleanZone:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !FindInMap [EnvironmentValues, Staging, CleanZoneBucketName]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogBucketClean
+
+# ---- Events and Notifications
   EventBridgeRule:
     Type: AWS::Events::Rule
     Properties: 
@@ -79,7 +92,35 @@ Resources:
           Id: ProcessFilesStateMachine
           RoleArn: !GetAtt InvokeStateMachineIamRole.Arn
 
+  FailureTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: FileExtensionFailureNotification
+      DisplayName: Incorrect file format has been uploaded. Must be of type .csv or .xlsx
 
+  SuccessTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: FileExtensionSuccessNotification
+      DisplayName: File succesfully uploaded, begining workflow.
+
+  MyFailEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref FailureTopic
+      # Retrieve email from pre-existing secret
+      Endpoint: "{{resolve:secretsmanager:my_secret_email:SecretString:my_email}}"
+
+  MySuccessEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      TopicArn: !Ref SuccessTopic
+      # Retrieve email from pre-existing secret
+      Endpoint: "{{resolve:secretsmanager:my_secret_email:SecretString:my_email}}"
+
+# ---- IAM Roles
   InvokeStateMachineIamRole: 
     Type: AWS::IAM::Role
     Properties: 
@@ -102,18 +143,6 @@ Resources:
                   # TODO - add StateMachine service and replace this hard-coded arn
                 Resource: arn:aws:states:ap-southeast-2:626218913707:stateMachine:ProcessFilesStateMachine
  
-
-  CleanZone:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      BucketName: !FindInMap [EnvironmentValues, Staging, CleanZoneBucketName]
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LoggingConfiguration:
-        DestinationBucketName: !Ref AccessLogBucketClean
-
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -153,71 +182,6 @@ Resources:
         - arn:aws:iam::aws:policy/SecretsManagerReadWrite
       RoleName: AirbnbS3GlueLambdaRole
 
-# ---- Lambdas
-  CSVtoParquetLambda: 
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
-        S3Key: airbnb_data_lakehouse/CSVtoParquetLambda.py.zip
-      FunctionName: CSVtoParquetLambda
-      Handler: CSVtoParquetLambda.lambda_handler
-      Runtime: python3.9
-      Layers:
-        - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout : 300
-      MemorySize: 1024
-
-  CheckFileExtensionLambda: 
-    Type: AWS::Lambda::Function
-    Properties:
-      Code:
-        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
-        S3Key: airbnb_data_lakehouse/CheckFileExtensionLambda.py.zip
-      FunctionName: CheckFileExtensionLambda
-      Handler: CheckFileExtensionLambda.lambda_handler
-      Runtime: python3.9
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout : 60
-      MemorySize: 128
-
-  CreateExternalSchemaLambda: 
-    Type: AWS::Lambda::Function
-    DependsOn: RedshiftSecret
-    Properties:
-      Code:
-        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
-        S3Key: airbnb_data_lakehouse/CreateExternalSchemaLambda.py.zip
-      Environment:
-        Variables:
-          redshift_role_arn: !GetAtt RedshiftRole.Arn
-          secret_arn:
-            Ref: RedshiftSecret
-          schema_name: !FindInMap [EnvironmentValues, Staging, GlueCatalogDBName]
-          cluster_id: !FindInMap [EnvironmentValues, Staging, RedshiftClusterId]
-          redshift_db_name: !FindInMap [EnvironmentValues, Staging, RedshiftDBName]
-      FunctionName: CreateExternalSchemaLambda
-      Handler: CreateExternalSchemaLambda.lambda_handler
-      Runtime: python3.9
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Timeout : 60
-      MemorySize: 128
-
-  RedshiftSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: This is my redshift instance secret
-      GenerateSecretString:
-        SecretStringTemplate: '{"username": "lg_admin"}'
-        GenerateStringKey: password
-        PasswordLength: 16
-        ExcludeCharacters: '"@/\ '
-
-      Tags:
-      - Key: project
-        Value: airbnb_data_lakehouse
-
   RedshiftRole:
     Type: AWS::IAM::Role
     Properties:
@@ -255,19 +219,110 @@ Resources:
         - arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess
       RoleName: RedshiftS3Access
 
-  RedshiftCluster:
-    Type: AWS::Redshift::Cluster
+  SNSPublishRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: 
+        - PolicyName: InvokeStateMachineRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - states:StartExecution
+                  # TODO - add StateMachine service and replace this hard-coded arn
+                Resource: arn:aws:states:ap-southeast-2:626218913707:stateMachine:ProcessFilesStateMachine
+# ---- Lambdas
+  CSVtoParquetLambda: 
+    Type: AWS::Lambda::Function
     Properties:
-      DBName: !FindInMap [EnvironmentValues, Staging, RedshiftDBName]
-      NodeType: dc2.large
-      ClusterType: single-node
-      ClusterIdentifier: !FindInMap [EnvironmentValues, Staging, RedshiftClusterId]
-      MasterUsername:
-        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::username}}"
-      MasterUserPassword:
-        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::password}}"
-      IamRoles: 
-        - !GetAtt RedshiftRole.Arn
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/CSVtoParquetLambda.py.zip
+      Environment:
+        Variables:
+          clean_zone_bucket_name: !FindInMap [EnvironmentValues, Staging, CleanZoneBucketName]
+      FunctionName: CSVtoParquetLambda
+      Handler: CSVtoParquetLambda.lambda_handler
+      Runtime: python3.9
+      Layers:
+        - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 300
+      MemorySize: 1024
+
+  ExcelToParquetLambda: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/ExcelToParquetLambda.py.zip
+      FunctionName: ExcelToParquetLambda
+      Handler: ExcelToParquetLambda.lambda_handler
+      Runtime: python3.9
+      Layers:
+        - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 500
+      MemorySize: 2048
+
+  CheckFileExtensionLambda: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/CheckFileExtensionLambda.py.zip
+      FunctionName: CheckFileExtensionLambda
+      Handler: CheckFileExtensionLambda.lambda_handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 60
+      MemorySize: 128
+
+  CreateExternalSchemaLambda: 
+    Type: AWS::Lambda::Function
+    DependsOn: RedshiftSecret
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/CreateExternalSchemaLambda.py.zip
+      Environment:
+        Variables:
+          redshift_role_arn: !GetAtt RedshiftRole.Arn
+          secret_arn:
+            Ref: RedshiftSecret
+          schema_name: !FindInMap [EnvironmentValues, Staging, GlueCatalogDBName]
+          cluster_id: !FindInMap [EnvironmentValues, Staging, RedshiftClusterId]
+          redshift_db_name: !FindInMap [EnvironmentValues, Staging, RedshiftDBName]
+      FunctionName: CreateExternalSchemaLambda
+      Handler: CreateExternalSchemaLambda.lambda_handler
+      Runtime: python3.9
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 60
+      MemorySize: 128
+
+# ---- Secrets
+  RedshiftSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: This is my redshift instance secret
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "lg_admin"}'
+        GenerateStringKey: password
+        PasswordLength: 16
+        ExcludePunctuation: True
+
+      Tags:
+      - Key: project
+        Value: airbnb_data_lakehouse
 
   SecretRedshiftAttachment:
     Type: AWS::SecretsManager::SecretTargetAttachment
@@ -290,6 +345,23 @@ Resources:
       RotationRules:
         Duration: 2h
         ScheduleExpression: 'cron(0 8 1 * ? *)'
+
+# ---- Redshift
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      DBName: !FindInMap [EnvironmentValues, Staging, RedshiftDBName]
+      NodeType: dc2.large
+      ClusterType: single-node
+      ClusterIdentifier: !FindInMap [EnvironmentValues, Staging, RedshiftClusterId]
+      MasterUsername:
+        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::username}}"
+      MasterUserPassword:
+        Fn::Sub: "{{resolve:secretsmanager:${RedshiftSecret}::password}}"
+      IamRoles: 
+        - !GetAtt RedshiftRole.Arn
+
+
       
 
 
