@@ -17,7 +17,7 @@ def lambda_handler(event, context):
     # of the path prior to the file name.
     key_list = key.split("/")
     print(f"key_list: {key_list}")
-    db_name = key_list[len(key_list) - 1]
+    db_name = key_list[len(key_list) - 1].split(".")[0]
     print(f"db_name: {db_name}")
     table_name = datetime.now().strftime("%Y%m%d_%H%M%S")
     print(f"table_name: {table_name}")
@@ -33,26 +33,29 @@ def lambda_handler(event, context):
     print(f"Output_Path: {output_path}")
 
     # read the contents of the CSV file into a pandas DataFrame we
-    input_df = wr.s3.read_csv(input_path)
-    print(f"df shape: {str(input_df.shape)}")
-    current_databases = wr.catalog.databases()
-    # wr.catalog.databases()
-    if db_name not in current_databases.values:
-        print(f"- Database {db_name} does not exist... creating")
-        wr.catalog.create_database(db_name)
-    else:
-        print(f"- Database {db_name} already exists.")
+    input_df = wr.s3.read_excel(input_path, sheet_name=None)
+    db_names_list = []
+    for df_sheet in input_df:
+        db_name = db_name + "_" + str(df_sheet)
+        current_databases = wr.catalog.databases()
+        # wr.catalog.databases()
+        if db_name not in current_databases.values:
+            print(f"- Database {db_name} does not exist... creating")
+            wr.catalog.create_database(db_name)
+        else:
+            print(f"- Database {db_name} already exists.")
 
-    # use the AWS Data Wrangler library to create a Parquet file
-    print("starting save to parquet")
+        # use the AWS Data Wrangler library to create a Parquet file
+        print("starting save to parquet")
 
-    result = wr.s3.to_parquet(
-        df=input_df,
-        path=output_path,
-        dataset=True,
-        database=db_name,
-        table=table_name,
-        mode="append",
-    )
-    payload = {"db_name": db_name}
+        result = wr.s3.to_parquet(
+            df=input_df,
+            path=output_path,
+            dataset=True,
+            database=db_name,
+            table=table_name,
+            mode="append",
+        )
+        db_names_list.append(db_name)
+    payload = {"db_name": db_names_list}
     return payload

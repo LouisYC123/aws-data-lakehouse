@@ -1,10 +1,11 @@
 # aws-data-lakehouse
 An AWS Data Lakehouse for analytics on Lisbon AirBnB data
 
-![lisbon-datalake_V2 drawio-2](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/092e9985-d32d-45b2-86c7-5cce6b7c7f7e)
+![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5955bb96-6613-41d0-bf19-24ad21ccf02c)
 
 ## Setup 
 1. Create bucket for lambdas and upload lambda zips
+2. add your email to Secrets Manager, this will be used for notification alerts. Add the secret's arn to line XXX (~302, in MySecretEmailAttachment:Properties:SecretId )
 1. Create stack using cloudformation.yml
 3. Load data to landing zone using cli command: ``` aws s3 cp <local_filepath> s3://<bucket_name>/<key>```
 4. Query data with AWS Athena and identify 'hot' data to be loaded to warehouse
