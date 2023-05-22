@@ -11,6 +11,7 @@ Mappings:
     Staging:
       LandingZoneBucketName: lg-airbnb-staging-data-landing-zone
       CleanZoneBucketName: lg-airbnb-staging-data-clean-zone
+      ArchiveZoneBucketName: lg-airbnb-staging-data-archive-zone
       LambdaBucketName: lg-lambda-bucket
       RedshiftClusterName: redshift-cluster-airbnb-staging-dw
       RedshiftDBName: lisbon_airbnb_prod
@@ -26,16 +27,7 @@ Mappings:
 Transform: AWS::SecretsManager-2020-07-23
 
 Resources:  
-# ---- S3 Buckets
-  AccessLogBucketLanding:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: ObjectWriter
-            
+# ---- S3 Buckets     
   LandingZone:
     Type: "AWS::S3::Bucket"
     Properties:
@@ -50,15 +42,6 @@ Resources:
       LoggingConfiguration:
         DestinationBucketName: !Ref AccessLogBucketLanding
 
-  AccessLogBucketClean:
-    Type: "AWS::S3::Bucket"
-    Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-      OwnershipControls:
-        Rules:
-          - ObjectOwnership: ObjectWriter
-
   CleanZone:
     Type: "AWS::S3::Bucket"
     Properties:
@@ -69,6 +52,51 @@ Resources:
               SSEAlgorithm: AES256
       LoggingConfiguration:
         DestinationBucketName: !Ref AccessLogBucketClean
+
+  ArchiveZone:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !FindInMap [EnvironmentValues, Staging, ArchiveZoneBucketName]
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToGlacier
+            Status: Enabled
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 0
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LoggingConfiguration:
+        DestinationBucketName: !Ref AccessLogBucketArchive
+
+  AccessLogBucketLanding:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+          
+  AccessLogBucketClean:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+
+  AccessLogBucketArchive:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
 
 # ---- Events and Notifications
   EventBridgeRule:
@@ -174,6 +202,8 @@ Resources:
                   - !Sub "${LandingZone.Arn}/*"
                   - !GetAtt CleanZone.Arn
                   - !Sub "${CleanZone.Arn}/*"
+                  - !GetAtt ArchiveZone.Arn
+                  - !Sub "${ArchiveZone.Arn}/*"
               - Effect: Allow 
                 Action: glue:*
                 Resource: '*'
@@ -240,6 +270,7 @@ Resources:
                   - states:StartExecution
                   # TODO - add StateMachine service and replace this hard-coded arn
                 Resource: arn:aws:states:ap-southeast-2:626218913707:stateMachine:ProcessFilesStateMachine
+
 # ---- Lambdas
   CSVtoParquetLambda: 
     Type: AWS::Lambda::Function
@@ -309,6 +340,38 @@ Resources:
       Timeout : 60
       MemorySize: 128
 
+  ArchiveFileLambda: 
+    Type: AWS::Lambda::Function
+    DependsOn: Boto3Layer
+    Properties:
+      Code:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: airbnb_data_lakehouse/ArchiveFileLambda.py.zip
+      Environment:
+        Variables:
+          landing_zone_bucket_name: !FindInMap [EnvironmentValues, Staging, LandingZoneBucketName]
+          archive_zone_bucket_name: !FindInMap [EnvironmentValues, Staging, ArchiveZoneBucketName]
+      FunctionName: ArchiveFileLambda
+      Handler: ArchiveFileLambda.lambda_handler
+      Runtime: python3.9
+      Layers: 
+        - !Ref Boto3Layer
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout : 120
+      MemorySize: 128
+  
+  # - Lambda Layers
+  Boto3Layer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: boto3_layer
+      Description: Contains functions to interact with s3 using boto3
+      Content:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: layers/boto3_lib.zip
+      CompatibleRuntimes:
+        - python3.9
+
 # ---- Secrets
   RedshiftSecret:
     Type: AWS::SecretsManager::Secret
@@ -319,7 +382,6 @@ Resources:
         GenerateStringKey: password
         PasswordLength: 16
         ExcludePunctuation: True
-
       Tags:
       - Key: project
         Value: airbnb_data_lakehouse
@@ -362,8 +424,7 @@ Resources:
         - !GetAtt RedshiftRole.Arn
 
 
-      
 
-
-
-
+Outputs:
+  LambdaLayerArn:
+    Value: !Ref Boto3Layer
