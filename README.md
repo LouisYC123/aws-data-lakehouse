@@ -24,11 +24,15 @@ Note:
 
 - Load local data to s3 bucket
     - ```aws s3 cp <local_filepath> s3://<bucket_name>/<key>```
-    - i.e : ```aws s3 cp listings.csv s3://lg-airbnb-staging-data-landing-zone/listings/data_from_2023-03-19/listings.csv```
+    - i.e : ```aws s3 cp test.csv s3://lg-airbnb-staging-data-landing-zone/test.csv```
 
 - Delete a file from an s3 bucket
  -  ```aws s3api delete-object --bucket <bucket_name> --key <key>```
  -  i.e: ```aws s3api delete-object --bucket lg-airbnb-staging-data-landing-zone --key testdb/csvparquet/test.csv```
+
+- zip a file
+    - ```zip -r Layers/boto3_layer.zip Layers/boto3_layer```
+
 
 
 ![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)

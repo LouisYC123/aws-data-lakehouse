@@ -57,5 +57,9 @@ def lambda_handler(event, context):
             mode="append",
         )
         db_names_list.append(db_name)
-    payload = {"db_name": db_names_list}
-    return payload
+    return {
+        "db_name": db_names_list,
+        "source_bucket":bucket,
+        "source_s3_key":key,
+    }
+
