@@ -11,10 +11,9 @@ def lambda_handler(event, context):
     key = urllib.parse.unquote_plus(event["detail"]["object"]["key"], encoding="utf-8")
     filename, file_extension = os.path.splitext(key)
     print(f"File extension is: {file_extension}")
-    payload = {
+    return {
+        'source_bucket': bucket,
+        'source_key': key,
         "file_extension": file_extension,
-        "bucket": bucket,
-        "key": key,
         "filename": filename,
     }
-    return payload

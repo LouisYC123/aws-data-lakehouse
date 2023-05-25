@@ -8,8 +8,8 @@ def lambda_handler(event, context):
 
     redshift_data_client = boto3.client("redshift-data")
     sql = f"""
-            create external schema {event['db_name']} 
-            from data catalog database '{event['db_name']}'
+            create external schema {event['filename']} 
+            from data catalog database '{event['filename']}'
             iam_role '{os.environ['redshift_role_arn']}'  
             create external database if not exists;
         """

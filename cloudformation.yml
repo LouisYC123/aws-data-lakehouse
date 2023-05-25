@@ -286,6 +286,7 @@ Resources:
       Runtime: python3.9
       Layers:
         - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+        - !Ref LandingEventLayer
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout : 300
       MemorySize: 1024
@@ -301,6 +302,7 @@ Resources:
       Runtime: python3.9
       Layers:
         - arn:aws:lambda:ap-southeast-2:336392948345:layer:AWSDataWrangler-Python39:1
+        - !Ref LandingEventLayer
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout : 500
       MemorySize: 2048
@@ -369,6 +371,17 @@ Resources:
       Content:
         S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
         S3Key: layers/boto3_lib.zip
+      CompatibleRuntimes:
+        - python3.9
+
+  LandingEventLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: landing_event_layer
+      Description: Contains functions to process files and set up Glue tables when files arrive in landing zone
+      Content:
+        S3Bucket: !FindInMap [EnvironmentValues, Staging, LambdaBucketName]
+        S3Key: layers/landing_event_layer.zip
       CompatibleRuntimes:
         - python3.9
 
