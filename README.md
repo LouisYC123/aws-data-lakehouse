@@ -1,22 +1,40 @@
 # aws-data-lakehouse
-An AWS Data Lakehouse for analytics on Lisbon AirBnB data
+**WIP**
+This repo contains a cloudformation template to build a Data LakeHouse on AWS for Lisbon Property Data
 
-![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5955bb96-6613-41d0-bf19-24ad21ccf02c)
+![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5955bb96-6613-41d0-bf19-24ad21ccf02c)  
+
+The CloudFormation template will create a stack incorporating the core features required for the Data LakeHouse on AWS including:
+- S3 Landing zone
+- S3 Clean zone
+- S3 Archive Zone
+- EventBrige Rules to trigger StepFunctions State Machine when new file arrives in landing zone
+- Redshift Clusters
+- SNS email notifications for arrival of new data, State Machine success and State Machine failure
+- Python Lambdas for data processing
+- Lambda Layers for code deployment
+- Secrets manager for Redshift credentials access and rotation
+- All neccessary IAM roles
 
 
-## Setup 
-1. Create bucket for lambdas and upload lambda zips
-2. add your email to Secrets Manager, this will be used for notification alerts. Add the secret's arn to line XXX (~302, in MySecretEmailAttachment:Properties:SecretId )
+Complete Data Lakehouse will hold:
+ - Lisbon AirBnb data downloaded from insideairbnb.com  (In Progress)
+ - Lisbon property data scraped from www.Idealista.pt (ToDo)
+ - Lisbon property data scraped from www.green-acres.pt (ToDo)
+ - Lisbon property data scraped from www.rebrealty.com (ToDo)
+
+
+## How to use 
+1. Create bucket for lambdas and upload lambda zips in ```/lambdas/```
+2. Add your email to Secrets Manager, this will be used for notification alerts.
 1. Create stack using cloudformation.yml
 3. Load data to landing zone using cli command: ``` aws s3 cp <local_filepath> s3://<bucket_name>/<key>```
-4. Query data with AWS Athena and identify 'hot' data to be loaded to warehouse
-Note:
- - added 'AWSLambdaBasicExecutionRole' and 'AmazonRedshiftFullAccess' and 'SecretsManagerReadWrite' policy to 'AirbnbS3GlueLambdaRole' Role
 
 
- - Define external table
+
 ## Governance & Security
 
+**TODO**
 
 ## Useful AWS CLI Commands
 ** TODO - add more here for setting up AWS CLI
@@ -36,6 +54,3 @@ Note:
 
 
 ![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)
-
-![lisbon-airbnb-steps drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/7cb03522-2106-4d9b-8bef-9b6618dc56fb)
-
