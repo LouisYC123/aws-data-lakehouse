@@ -1,5 +1,5 @@
 # aws-data-lakehouse
-**WIP**  
+** *WIP* **  
 This repo contains a cloudformation template to build a Data LakeHouse on AWS for Lisbon Property Data
 
 ![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/c6dc32de-02e8-4a7b-861a-5f9a877c7b13)
