@@ -2,7 +2,8 @@
 **WIP**
 This repo contains a cloudformation template to build a Data LakeHouse on AWS for Lisbon Property Data
 
-![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5955bb96-6613-41d0-bf19-24ad21ccf02c)  
+![lisbon-datalake_V3 drawio](https://github.com/LouisYC123/aws-data-lakehouse/assets/97873724/5abc2856-05a5-4eab-9e00-8d0c3198eca2)
+
 
 The CloudFormation template will create a stack incorporating the core features required for the Data LakeHouse on AWS including:
 - S3 Landing zone
