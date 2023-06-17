@@ -11,6 +11,7 @@ The CloudFormation template will create a stack incorporating the core features 
 - S3 Clean zone
 - S3 Archive Zone
 - EventBrige Rules to trigger StepFunctions State Machine when new file arrives in landing zone
+- Logging configuration
 - Redshift Clusters
 - SNS email notifications for arrival of new data, State Machine success and State Machine failure
 - Python Lambdas for data processing
